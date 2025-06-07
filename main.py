@@ -10,12 +10,14 @@ import torch.optim as optim
 from sklearn.model_selection import train_test_split
 import torchvision
 from PIL import Image
+import torch.nn.functional as F
 
-# Define the ClCIFAR10 dataset class
-class ClCIFAR10(Dataset):
-	def __init__(self, data, transform=None):
+# Define the CLCIFAR10 dataset class
+class CLCIFAR10(Dataset):
+	def __init__(self, data, transform=None, num_classes=10):
 		self.data = data
 		self.transform = transform
+		self.num_classes = num_classes
 
 	def __len__(self):
 		return len(self.data['images'])
@@ -25,7 +27,15 @@ class ClCIFAR10(Dataset):
 		img = Image.fromarray(img)  # Convert NumPy array to PIL Image
 		if self.transform:
 			img = self.transform(img)
-		return img, cl_label
+        
+        # Convert complementary labels to binary tensor here
+		cl_binary = torch.zeros(self.num_classes, dtype=torch.float32)
+		if isinstance(cl_label, (list, tuple, np.ndarray)):
+			cl_binary[cl_label] = 1
+		else:
+			cl_binary[cl_label] = 1
+            
+		return img, cl_binary
 
 # Split the dataset into training and validation sets
 def split_dataset(data, train_ratio=0.9):
@@ -59,6 +69,14 @@ def mcl_exp_loss(output, cl_labels):
 	loss = -torch.mean(torch.log(1 - exp_output[mask.bool()]))
 	return loss
 
+def training_step(output, cl_labels):
+        p = F.softmax(output, dim=1)
+        p = ((1 - cl_labels) * p).sum(dim=1)
+        loss = torch.exp(-p)
+        loss = ((2 * 10 - 2) * loss / cl_labels.sum(dim=1)).sum()
+        print("Train_Loss", loss)
+        return loss
+
 # Define the FWD loss function
 def fwd_loss(output, cl_labels):
 	softmax_output = torch.softmax(output, dim=1)
@@ -83,13 +101,17 @@ def evaluate_model(model, testloader, device):
 
 def main():
 	os.makedirs('./data/clcifar10', exist_ok=True)
+	# Download the dataset if it doesn't exist
 	dataset_path='./data/clcifar10/clcifar10.pkl'
 	if not os.path.exists(dataset_path):
 		gdown.download(id="1uNLqmRUkHzZGiSsCtV2-fHoDbtKPnVt2", output=dataset_path)
+
+	# Read the dataset
+	print("Loading dataset...")
 	data = pickle.load(open(dataset_path, 'rb'))
 
-	# Set up transformations
-	transform = transforms.Compose([
+	# Set up train and test transformations
+	train_transform = transforms.Compose([
 		transforms.RandomHorizontalFlip(),
 		transforms.RandomCrop(32, padding=4),
 		transforms.ToTensor(),
@@ -97,7 +119,6 @@ def main():
 			[0.5068, 0.4854, 0.4402], [0.2672, 0.2563, 0.2760]
 		),
 	])
-
 	test_transform = transforms.Compose([
 		transforms.ToTensor(),
 		transforms.Normalize(
@@ -106,8 +127,8 @@ def main():
 	])
 
 	# Prepare the dataset and dataloader
-	dataset = ClCIFAR10(data, transform=transform)
-	dataloader = DataLoader(dataset, batch_size=256, shuffle=True, num_workers=4)
+	trainset = CLCIFAR10(data, transform=train_transform)
+	trainloader = DataLoader(trainset, batch_size=256, shuffle=True, num_workers=4)
 
 	testset = torchvision.datasets.CIFAR10(root='./data', train=False, download=True, transform=test_transform)
 	testloader = DataLoader(testset, batch_size=256, shuffle=False, num_workers=4)
@@ -118,34 +139,54 @@ def main():
 
 	# Set up optimizer and loss function
 	optimizer = optim.Adam(model.parameters(), lr=1e-4)
-	loss_function = mcl_exp_loss  # Change to fwd_loss if needed
+	loss_function = training_step  # Change to fwd_loss if needed
 
-	# Training loop
-	device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+	# Select device
+	if torch.cuda.is_available():
+		# Use CUDA if available
+		print("Using CUDA backend")
+		device = torch.device("cuda")
+	elif torch.backends.mps.is_available():
+		# Use MPS if available
+		print("Using MPS backend")
+		device = torch.device("mps")
+	else:
+		# Fallback to CPU
+		print("Using CPU backend")
+		device = torch.device("cpu")
 	model.to(device)
 
+	# Training loop
 	num_epochs = 10
 	for epoch in range(num_epochs):
+		print(f"Epoch {epoch+1}/{num_epochs}")
 		model.train()
 		running_loss = 0.0
-		for images, cl_labels in dataloader:
+		num_images = 0
+		for images, cl_labels in trainloader:
+			print(f"Images shape: {images.shape}")
+			print(f"CL Labels shape: {cl_labels.shape}")  # Should now be [batch_size, num_classes]
+            
 			images = images.to(device)
+			cl_labels = cl_labels.to(device)
 
-			# Convert cl_labels to a list of tensors for each sample
-			cl_tensor = [torch.tensor(cl, dtype=torch.long) for cl in cl_labels]
-
-			# Forward pass
+            # Forward pass
 			outputs = model(images)
-			loss = loss_function(outputs, cl_tensor)
-
-			# Backward pass and optimization
+			loss = loss_function(outputs, cl_labels)
+            
+            # Backward pass and optimization
 			optimizer.zero_grad()
 			loss.backward()
 			optimizer.step()
+			
+			print(f"Batch Loss: {loss.item():.4f}")
+			running_loss += loss.item() * images.size(0)
+			print(f"Batch Size: {images.size(0)}")
+			print(f"Running Loss: {running_loss:.4f}")
+			num_images += images.size(0)
+			print(f"Number of Images Processed: {num_images}")
 
-			running_loss += loss.item()
-
-		print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {running_loss/len(dataloader):.4f}")
+		print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {running_loss/num_images:.4f}")
 
 	# Call the evaluation function after training
 	evaluate_model(model, testloader, device)
