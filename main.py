@@ -1,195 +1,104 @@
+# %%
+
+# For debugging with Jupyter Notebook
+
+import sys
+sys.argv = [
+    'main.py',  # dummy script name
+    '--ds', 'clcifar10',
+    '--algo', 'mcl',
+    '--model', 'resnet18',
+]
+
 import os
 import pickle
-import numpy as np
 import gdown
 import torch
-from torch.utils.data import DataLoader, Dataset
-from torchvision import transforms, models
-import torch.nn as nn
+from torch.utils.data import DataLoader
+from torchvision import transforms
 import torch.optim as optim
-from sklearn.model_selection import train_test_split
-import torchvision
-from PIL import Image
-import torch.nn.functional as F
+import argparse
 
-# Define the CLCIFAR10 dataset class
-class CLCIFAR10(Dataset):
-	def __init__(self, data, transform=None, num_classes=10):
-		self.data = data
-		self.transform = transform
-		self.num_classes = num_classes
+# Import custom modules
 
-	def __len__(self):
-		return len(self.data['images'])
+from dataset import get_dataset
+from algorithm import mcl_exp_loss, fwd_loss, evaluate_model
+from model import get_resnet_model
 
-	def __getitem__(self, idx):
-		img, cl_label = self.data['images'][idx], self.data['cl_labels'][idx]
-		img = Image.fromarray(img)  # Convert NumPy array to PIL Image
-		if self.transform:
-			img = self.transform(img)
-        
-        # Convert complementary labels to binary tensor here
-		cl_binary = torch.zeros(self.num_classes, dtype=torch.float32)
-		if isinstance(cl_label, (list, tuple, np.ndarray)):
-			cl_binary[cl_label] = 1
-		else:
-			cl_binary[cl_label] = 1
-            
-		return img, cl_binary
+# Parse command line arguments
 
-# Split the dataset into training and validation sets
-def split_dataset(data, train_ratio=0.9):
-	train_data, val_data = {}, {}
-	train_indices, val_indices = train_test_split(
-		range(len(data['images'])), test_size=1-train_ratio, random_state=42
-	)
+parser = argparse.ArgumentParser(description="Complementary and Partial Label Learning")
+parser.add_argument('--ds', type=str, required=True, choices=['clcifar10', 'clcifar20', 'clmin10', 'clmin20', 'cifar10_pl', 'cifar20_pl', 'min10_pl', 'min20_pl'], help='Dataset to use')
+parser.add_argument('--algo', type=str, required=True, choices=['fwd', 'mcl', 'proden', 'pico'], help='Algorithm to use')
+parser.add_argument('--model', type=str, required=True, choices=['resnet18', 'convnet'], help='Model architecture to use')
+parser.add_argument('--bs', type=int, default=256, help='Batch size (default: 256)')
+parser.add_argument('--lr', type=float, default=0.0001, help='Learning rate (default: 0.0001)')
+parser.add_argument('--epochs', type=int, default=300, help='Number of epochs (default: 300)')
+args = parser.parse_args()
 
-	train_data['images'] = [data['images'][i] for i in train_indices]
-	train_data['cl_labels'] = [data['cl_labels'][i] for i in train_indices]
+# Configure dataset
 
-	val_data['images'] = [data['images'][i] for i in val_indices]
-	val_data['cl_labels'] = [data['cl_labels'][i] for i in val_indices]
+trainset, testset, num_classes = get_dataset(args)
 
-	return train_data, val_data
+# Configure model
 
-# Split the dataset
-# data_train, data_val = split_dataset(data)
+model = get_resnet_model(num_classes)
 
-# Define the MCL with EXP loss function
-def mcl_exp_loss(output, cl_labels):
-	exp_output = torch.exp(output)
-	batch_size, num_classes = output.shape
+# Configure algorithm
 
-	# Create a mask for the complementary labels
-	mask = torch.zeros((batch_size, num_classes), device=output.device)
-	for i, labels in enumerate(cl_labels):
-		mask[i, labels] = 1
-
-	# Compute the loss using the mask
-	loss = -torch.mean(torch.log(1 - exp_output[mask.bool()]))
-	return loss
-
-def training_step(output, cl_labels):
-        p = F.softmax(output, dim=1)
-        p = ((1 - cl_labels) * p).sum(dim=1)
-        loss = torch.exp(-p)
-        loss = ((2 * 10 - 2) * loss / cl_labels.sum(dim=1)).sum()
-        print("Train_Loss", loss)
-        return loss
-
-# Define the FWD loss function
-def fwd_loss(output, cl_labels):
-	softmax_output = torch.softmax(output, dim=1)
-	loss = -torch.mean(torch.log(1 - softmax_output[range(len(cl_labels)), cl_labels]))
-	return loss
-
-# Evaluate the model
-def evaluate_model(model, testloader, device):
-	model.eval()
-	correct = 0
-	total = 0
-	with torch.no_grad():
-		for images, labels in testloader:
-			images, labels = images.to(device), labels.to(device)
-			outputs = model(images)
-			_, predicted = torch.max(outputs, 1)
-			total += labels.size(0)
-			correct += (predicted == labels).sum().item()
-
-	accuracy = 100 * correct / total
-	print(f'Test Accuracy: {accuracy:.2f}%')
+if args.algo == 'fwd':
+    loss_function = fwd_loss
+elif args.algo == 'mcl':
+    loss_function = mcl_exp_loss
+# Add more algorithms as needed
+else:
+    raise NotImplementedError(f"Algorithm {args.algo} not implemented yet.")
 
 def main():
-	os.makedirs('./data/clcifar10', exist_ok=True)
-	# Download the dataset if it doesn't exist
-	dataset_path='./data/clcifar10/clcifar10.pkl'
-	if not os.path.exists(dataset_path):
-		gdown.download(id="1uNLqmRUkHzZGiSsCtV2-fHoDbtKPnVt2", output=dataset_path)
+	trainloader = DataLoader(trainset, batch_size=args.bs, shuffle=True, num_workers=4)
+	testloader = DataLoader(testset, batch_size=args.bs, shuffle=False, num_workers=4)
+	optimizer = optim.Adam(model.parameters(), lr=args.lr)
 
-	# Read the dataset
-	print("Loading dataset...")
-	data = pickle.load(open(dataset_path, 'rb'))
-
-	# Set up train and test transformations
-	train_transform = transforms.Compose([
-		transforms.RandomHorizontalFlip(),
-		transforms.RandomCrop(32, padding=4),
-		transforms.ToTensor(),
-		transforms.Normalize(
-			[0.5068, 0.4854, 0.4402], [0.2672, 0.2563, 0.2760]
-		),
-	])
-	test_transform = transforms.Compose([
-		transforms.ToTensor(),
-		transforms.Normalize(
-			[0.4922, 0.4832, 0.4486], [0.2456, 0.2419, 0.2605]
-		),
-	])
-
-	# Prepare the dataset and dataloader
-	trainset = CLCIFAR10(data, transform=train_transform)
-	trainloader = DataLoader(trainset, batch_size=256, shuffle=True, num_workers=4)
-
-	testset = torchvision.datasets.CIFAR10(root='./data', train=False, download=True, transform=test_transform)
-	testloader = DataLoader(testset, batch_size=256, shuffle=False, num_workers=4)
-
-	# Initialize the model
-	model = models.resnet18(weights=None)
-	model.fc = nn.Linear(model.fc.in_features, 10)  # Adjust for 10 classes
-
-	# Set up optimizer and loss function
-	optimizer = optim.Adam(model.parameters(), lr=1e-4)
-	loss_function = training_step  # Change to fwd_loss if needed
-
-	# Select device
+	# Configure device
+	 
 	if torch.cuda.is_available():
-		# Use CUDA if available
 		print("Using CUDA backend")
 		device = torch.device("cuda")
 	elif torch.backends.mps.is_available():
-		# Use MPS if available
 		print("Using MPS backend")
 		device = torch.device("mps")
 	else:
-		# Fallback to CPU
 		print("Using CPU backend")
 		device = torch.device("cpu")
 	model.to(device)
 
-	# Training loop
-	num_epochs = 10
+	# Run training
+	 
+	num_epochs = args.epochs
 	for epoch in range(num_epochs):
-		print(f"Epoch {epoch+1}/{num_epochs}")
+		
 		model.train()
 		running_loss = 0.0
 		num_images = 0
 		for images, cl_labels in trainloader:
-			print(f"Images shape: {images.shape}")
-			print(f"CL Labels shape: {cl_labels.shape}")  # Should now be [batch_size, num_classes]
-            
 			images = images.to(device)
 			cl_labels = cl_labels.to(device)
-
-            # Forward pass
 			outputs = model(images)
 			loss = loss_function(outputs, cl_labels)
-            
-            # Backward pass and optimization
 			optimizer.zero_grad()
 			loss.backward()
 			optimizer.step()
-			
-			print(f"Batch Loss: {loss.item():.4f}")
 			running_loss += loss.item() * images.size(0)
-			print(f"Batch Size: {images.size(0)}")
-			print(f"Running Loss: {running_loss:.4f}")
 			num_images += images.size(0)
-			print(f"Number of Images Processed: {num_images}")
 
-		print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {running_loss/num_images:.4f}")
-
-	# Call the evaluation function after training
-	evaluate_model(model, testloader, device)
+		# Evaluate current model on training set and test set
+		
+		# if (epoch + 1) % 10 == 0 or epoch == num_epochs - 1:
+		if True:
+			model.eval()
+			train_acc = evaluate_model(model, trainloader, device)
+			test_acc = evaluate_model(model, testloader, device)
+			print(f"Epoch {epoch+1}/{num_epochs}, Train Accuracy: {train_acc:.2f}%, Test Accuracy: {test_acc:.2f}%, Loss: {running_loss / num_images:.4f}")
 
 if __name__ == '__main__':
     main()
