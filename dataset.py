@@ -10,9 +10,11 @@ class CLCIFAR10(Dataset):
 	The training set of CIFAR10 with human annotated complementary labels.
 	Containing 50000 samples, each with one ordinary label and the first one of the three complementary labels
 	"""
-	def __init__(self, data, transform=None, num_classes=10, train=True):
+	def __init__(self, data, transform=None, num_classes=10, train=True, invert_labels=False, algo=None):
 		self.transform = transform
 		self.num_classes = num_classes
+		self.invert_labels = invert_labels
+		self.algo = algo
 		# Preprocess images and labels
 		self.images = [self.transform(Image.fromarray(img)) if self.transform else Image.fromarray(img) for img in data['images']]
 		self.labels = []
@@ -23,6 +25,8 @@ class CLCIFAR10(Dataset):
 					cl_binary[cl_label] = 1
 				else:
 					cl_binary[cl_label] = 1
+				if self.invert_labels:
+					cl_binary = 1 - cl_binary
 				self.labels.append(cl_binary)
 		else:
 			for ord_label in data['ord_labels']:
@@ -31,14 +35,18 @@ class CLCIFAR10(Dataset):
 					cl_binary[ord_label] = 1
 				else:
 					cl_binary[ord_label] = 1
+				if self.invert_labels:
+					cl_binary = 1 - cl_binary
 				self.labels.append(cl_binary)
 
 	def __len__(self):
 		return len(self.images)
 
 	def __getitem__(self, idx):
-		print(f"Getting item {idx} from CLCIFAR10 dataset")
-		return self.images[idx], self.labels[idx]
+		if self.algo == 'proden':
+			return self.images[idx], self.labels[idx], idx
+		else:
+			return self.images[idx], self.labels[idx]
 
 def _cifar100_to_cifar20(target):
 	_dict = {
@@ -60,10 +68,12 @@ class CLCIFAR20(torchvision.datasets.CIFAR100, Dataset):
 	The training set of CIFAR20 with human annotated complementary labels.
 	Containing 50000 samples, each with one ordinary label and the first one of the three complementary labels
 	"""
-	def __init__(self, data=None, transform=None, num_classes=20, train=True):
+	def __init__(self, data=None, transform=None, num_classes=20, train=True, invert_labels=False, algo=None):
 		self.transform = transform
 		self.num_classes = num_classes
 		self.train = train
+		self.invert_labels = invert_labels
+		self.algo = algo
 		if not train:
 			super(CLCIFAR20, self).__init__(
 				root='./data/cifar20', train=train, transform=transform, download=True
@@ -78,6 +88,8 @@ class CLCIFAR20(torchvision.datasets.CIFAR100, Dataset):
 					cl_binary[cl_label] = 1
 				else:
 					cl_binary[cl_label] = 1
+				if self.invert_labels:
+					cl_binary = 1 - cl_binary
 				self.labels.append(cl_binary)
 
 	def __len__(self):
@@ -88,13 +100,18 @@ class CLCIFAR20(torchvision.datasets.CIFAR100, Dataset):
 
 	def __getitem__(self, idx):
 		if self.train:
-			return self.images[idx], self.labels[idx]
+			if self.algo == 'proden':
+				return self.images[idx], self.labels[idx], idx
+			else:
+				return self.images[idx], self.labels[idx]
 		else:
 			img, target = super().__getitem__(idx)
 			# Convert CIFAR100 label to CIFAR20 label for test set
 			target_20 = _cifar100_to_cifar20(target)
 			cl_binary = torch.zeros(self.num_classes, dtype=torch.float32)
 			cl_binary[target_20] = 1
+			if self.invert_labels:
+				cl_binary = 1 - cl_binary
 			return img, cl_binary
 
 def split_dataset(data, train_ratio=0.9):
@@ -108,7 +125,7 @@ def split_dataset(data, train_ratio=0.9):
 	val_data['cl_labels'] = [data['cl_labels'][i] for i in val_indices]
 	return train_data, val_data
 
-def get_dataset(args):
+def get_dataset(args, invert_labels=False):
 	import os
 	import pickle
 	import gdown
@@ -136,7 +153,7 @@ def get_dataset(args):
 				[0.4914, 0.4822, 0.4465], [0.247, 0.2435, 0.2616]
 			),
 		])
-		trainset = CLCIFAR20(data, transform=train_transform)
+		trainset = CLCIFAR20(data, transform=train_transform, invert_labels=invert_labels, algo=args.algo)
 		testset = CLCIFAR20(transform=test_transform, train=False)
 		return trainset, testset, num_classes
 	elif args.ds == 'clcifar10':
@@ -161,7 +178,7 @@ def get_dataset(args):
 				[0.4914, 0.4822, 0.4465], [0.2470, 0.2435, 0.2616]
 			),
 		])
-		trainset = CLCIFAR10(data, transform=train_transform)
+		trainset = CLCIFAR10(data, transform=train_transform, invert_labels=invert_labels, algo=args.algo)
 		testset = CLCIFAR10(data, transform=test_transform, train=False)
 		return trainset, testset, num_classes
 	# Add more dataset options here as needed
