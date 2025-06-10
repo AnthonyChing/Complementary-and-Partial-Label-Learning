@@ -13,6 +13,7 @@
 import torch
 from torch.utils.data import DataLoader
 from torchvision import transforms
+from torch.autograd import Variable
 import torch.optim as optim
 import argparse
 
@@ -66,8 +67,8 @@ else:
 	raise NotImplementedError(f"Algorithm {args.algo} not implemented yet.")
 
 def main():
-	trainloader = DataLoader(trainset, batch_size=args.bs, shuffle=True, num_workers=4)
-	testloader = DataLoader(testset, batch_size=args.bs, shuffle=False, num_workers=4)
+	trainloader = DataLoader(trainset, batch_size=args.bs, shuffle=True, num_workers=1)
+	testloader = DataLoader(testset, batch_size=args.bs, shuffle=False, num_workers=1)
 	optimizer = optim.Adam(model.parameters(), lr=args.lr)
 
 	# Configure device
@@ -81,6 +82,7 @@ def main():
 	else:
 		print("Using CPU backend")
 		device = torch.device("cpu")
+	device = torch.device("cpu")
 	model.to(device)
 
 	# Run training
@@ -120,8 +122,8 @@ def main():
 			model.train()
 
 			for i, (images, labels, indexes) in enumerate(trainloader): 
-				images = images.to(device)
-				labels = labels.to(device)
+				images = Variable(images).to(device)
+				labels = Variable(labels).to(device)
 				output = model(images)
 				
 				loss, new_label = proden_loss(output, labels)
