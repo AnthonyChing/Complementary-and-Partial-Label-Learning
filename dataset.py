@@ -152,7 +152,7 @@ class CLMIN10(Dataset):
 			return self.images[idx], self.labels[idx]
 
 class CLMIN20(Dataset):
-	def __init__(self, data=None, transform=None, num_classes=10, train=True, invert_labels=False, algo=None):
+	def __init__(self, data=None, transform=None, num_classes=20, train=True, invert_labels=False, algo=None):
 		self.transform = transform
 		self.num_classes = num_classes
 		self.train = train
