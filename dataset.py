@@ -114,6 +114,80 @@ class CLCIFAR20(torchvision.datasets.CIFAR100, Dataset):
 				cl_binary = 1 - cl_binary
 			return img, cl_binary
 
+class CLMIN10(Dataset):
+	def __init__(self, data=None, transform=None, num_classes=10, train=True, invert_labels=False, algo=None):
+		self.transform = transform
+		self.num_classes = num_classes
+		self.train = train
+		self.invert_labels = invert_labels
+		self.algo = algo
+		self.images = [self.transform(Image.fromarray(img)) if self.transform else Image.fromarray(img) for img in data['images']]
+		self.labels = []
+		if train:
+			for cl_label in data['cl_labels']:
+				cl_binary = torch.zeros(self.num_classes, dtype=torch.float32)
+				if isinstance(cl_label, (list, tuple, np.ndarray)):
+					cl_binary[cl_label] = 1
+				else:
+					cl_binary[cl_label] = 1
+				if self.invert_labels:
+					cl_binary = 1 - cl_binary
+				self.labels.append(cl_binary)
+		else:
+			for ord_label in data['ord_labels']:
+				cl_binary = torch.zeros(self.num_classes, dtype=torch.float32)
+				if isinstance(ord_label, (list, tuple, np.ndarray)):
+					cl_binary[ord_label] = 1
+				else:
+					cl_binary[ord_label] = 1
+				if self.invert_labels:
+					cl_binary = 1 - cl_binary
+				self.labels.append(cl_binary)
+	def __len__(self):
+		return len(self.images)
+	def __getitem__(self, idx):
+		if self.algo == 'proden':
+			return self.images[idx], self.labels[idx], idx
+		else:
+			return self.images[idx], self.labels[idx]
+
+class CLMIN20(Dataset):
+	def __init__(self, data=None, transform=None, num_classes=10, train=True, invert_labels=False, algo=None):
+		self.transform = transform
+		self.num_classes = num_classes
+		self.train = train
+		self.invert_labels = invert_labels
+		self.algo = algo
+		self.images = [self.transform(Image.fromarray(img)) if self.transform else Image.fromarray(img) for img in data['images']]
+		self.labels = []
+		if train:
+			for cl_label in data['cl_labels']:
+				cl_binary = torch.zeros(self.num_classes, dtype=torch.float32)
+				if isinstance(cl_label, (list, tuple, np.ndarray)):
+					cl_binary[cl_label] = 1
+				else:
+					cl_binary[cl_label] = 1
+				if self.invert_labels:
+					cl_binary = 1 - cl_binary
+				self.labels.append(cl_binary)
+		else:
+			for ord_label in data['ord_labels']:
+				cl_binary = torch.zeros(self.num_classes, dtype=torch.float32)
+				if isinstance(ord_label, (list, tuple, np.ndarray)):
+					cl_binary[ord_label] = 1
+				else:
+					cl_binary[ord_label] = 1
+				if self.invert_labels:
+					cl_binary = 1 - cl_binary
+				self.labels.append(cl_binary)
+	def __len__(self):
+		return len(self.images)
+	def __getitem__(self, idx):
+		if self.algo == 'proden':
+			return self.images[idx], self.labels[idx], idx
+		else:
+			return self.images[idx], self.labels[idx]
+
 def split_dataset(data, train_ratio=0.9):
 	train_data, val_data = {}, {}
 	train_indices, val_indices = train_test_split(
@@ -181,6 +255,65 @@ def get_dataset(args, invert_labels=False):
 		trainset = CLCIFAR10(data, transform=train_transform, invert_labels=invert_labels, algo=args.algo)
 		testset = CLCIFAR10(data, transform=test_transform, train=False)
 		return trainset, testset, num_classes
-	# Add more dataset options here as needed
+	elif args.ds == 'clmin10':
+		os.makedirs('./data/clmin10', exist_ok=True)
+		# Build train set
+		dataset_path = './data/clmin10/clmin10_train.pkl'
+		if not os.path.exists(dataset_path):
+			gdown.download(id="1k02mwMpnBUM9de7TiJLBaCuS8myGuYFx", output=dataset_path)
+		num_classes = 10
+		# print("Loading dataset...")
+		data = pickle.load(open(dataset_path, 'rb'))
+		train_transform = transforms.Compose([
+			transforms.RandomHorizontalFlip(),
+			transforms.RandomCrop(64, padding=8),
+			transforms.ToTensor(),
+			transforms.Normalize(
+				[0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
+			),
+		])
+		trainset = CLMIN10(data, transform=train_transform, invert_labels=invert_labels, algo=args.algo)
+		# Build test set
+		dataset_path = './data/clmin10/clmin10_test.pkl'
+		if not os.path.exists(dataset_path):
+			gdown.download(id="1e8fZN8swbg9wc6BSOC0A5KHIqCY2C7me", output=dataset_path)
+		test_transform = transforms.Compose([
+			transforms.ToTensor(),
+			transforms.Normalize(
+				[0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
+			),
+		])
+		testset = CLMIN10(data, transform=test_transform, train=False)
+		return trainset, testset, num_classes
+	elif args.ds == 'clmin20':
+		os.makedirs('./data/clmin20', exist_ok=True)
+		# Build train set
+		dataset_path = './data/clmin20/clmin20_train.pkl'
+		if not os.path.exists(dataset_path):
+			gdown.download(id="1Urdxs_QTxbb1gDBpmjP09Q35btckI3_d", output=dataset_path)
+		num_classes = 20
+		# print("Loading dataset...")
+		data = pickle.load(open(dataset_path, 'rb'))
+		train_transform = transforms.Compose([
+			transforms.RandomHorizontalFlip(),
+			transforms.RandomCrop(64, padding=8),
+			transforms.ToTensor(),
+			transforms.Normalize(
+				[0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
+			),
+		])
+		trainset = CLMIN20(data, transform=train_transform, invert_labels=invert_labels, algo=args.algo)
+		# Build test set
+		dataset_path = './data/clmin20/clmin20_test.pkl'
+		if not os.path.exists(dataset_path):
+			gdown.download(id="1EdBCrifSrIIUg1ioPWA-ZLEHO53P4NPl", output=dataset_path)
+		test_transform = transforms.Compose([
+			transforms.ToTensor(),
+			transforms.Normalize(
+				[0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
+			),
+		])
+		testset = CLMIN20(data, transform=test_transform, train=False)
+		return trainset, testset, num_classes
 	else:
 		raise NotImplementedError(f"Dataset {args.ds} not implemented yet.")
