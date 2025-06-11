@@ -1,15 +1,4 @@
 # %%
-
-# For debugging with Jupyter Notebook
-
-# import sys
-# sys.argv = [
-# 	'main.py',  # dummy script name
-# 	'--ds', 'clcifar10',
-# 	'--algo', 'proden',
-# 	'--model', 'resnet18',
-# ]
-
 import torch
 from torch.utils.data import DataLoader
 from torchvision import transforms
@@ -73,15 +62,15 @@ def main():
 
 	# Configure device
 	 
-	if torch.cuda.is_available():
-		print("Using CUDA backend")
-		device = torch.device("cuda")
-	elif torch.backends.mps.is_available():
-		print("Using MPS backend")
-		device = torch.device("mps")
-	else:
-		print("Using CPU backend")
-		device = torch.device("cpu")
+	# if torch.cuda.is_available():
+	# 	print("Using CUDA backend")
+	# 	device = torch.device("cuda")
+	# elif torch.backends.mps.is_available():
+	# 	print("Using MPS backend")
+	# 	device = torch.device("mps")
+	# else:
+	# 	print("Using CPU backend")
+	# 	device = torch.device("cpu")
 	device = torch.device("cpu")
 	model.to(device)
 
