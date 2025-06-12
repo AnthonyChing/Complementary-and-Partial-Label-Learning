@@ -28,6 +28,10 @@ class CLCIFAR10(Dataset):
 					cl_binary[cl_label] = 1
 				if self.invert_labels:
 					cl_binary = 1 - cl_binary
+				if self.algo == 'proden':
+					count = cl_binary.sum().item()
+					if count > 0:
+						cl_binary = cl_binary / count
 				self.labels.append(cl_binary)
 		else:
 			for ord_label in data['ord_labels']:
@@ -91,6 +95,10 @@ class CLCIFAR20(torchvision.datasets.CIFAR100, Dataset):
 					cl_binary[cl_label] = 1
 				if self.invert_labels:
 					cl_binary = 1 - cl_binary
+				if self.algo == 'proden':
+					count = cl_binary.sum().item()
+					if count > 0:
+						cl_binary = cl_binary / count
 				self.labels.append(cl_binary)
 
 	def __len__(self):
@@ -133,6 +141,10 @@ class CLMIN10(Dataset):
 					cl_binary[cl_label] = 1
 				if self.invert_labels:
 					cl_binary = 1 - cl_binary
+				if self.algo == 'proden':
+					count = cl_binary.sum().item()
+					if count > 0:
+						cl_binary = cl_binary / count
 				self.labels.append(cl_binary)
 		else:
 			for ord_label in data['ord_labels']:
@@ -170,6 +182,10 @@ class CLMIN20(Dataset):
 					cl_binary[cl_label] = 1
 				if self.invert_labels:
 					cl_binary = 1 - cl_binary
+				if self.algo == 'proden':
+					count = cl_binary.sum().item()
+					if count > 0:
+						cl_binary = cl_binary / count
 				self.labels.append(cl_binary)
 		else:
 			for ord_label in data['ord_labels']:
@@ -213,6 +229,10 @@ class PLCIFAR10(Dataset):
                 cl_binary[list(candidate)] = 1
                 if self.invert_labels:
                     cl_binary = 1 - cl_binary
+                if self.algo == 'proden':
+                    count = cl_binary.sum().item()
+                    if count > 0:
+                        cl_binary = cl_binary / count
                 self.labels.append(cl_binary)
         else:
             for ord_label in data['ord_labels']:
@@ -257,6 +277,10 @@ class PLCIFAR20(torchvision.datasets.CIFAR100, Dataset):
                 cl_binary[list(candidate)] = 1
                 if self.invert_labels:
                     cl_binary = 1 - cl_binary
+                if self.algo == 'proden':
+                    count = cl_binary.sum().item()
+                    if count > 0:
+                        cl_binary = cl_binary / count
                 self.labels.append(cl_binary)
     def __len__(self):
         if self.train:
@@ -301,6 +325,10 @@ class PLMIN10(Dataset):
                 cl_binary[list(candidate)] = 1
                 if self.invert_labels:
                     cl_binary = 1 - cl_binary
+                if self.algo == 'proden':
+                    count = cl_binary.sum().item()
+                    if count > 0:
+                        cl_binary = cl_binary / count
                 self.labels.append(cl_binary)
         else:
             for ord_label in data['ord_labels']:
@@ -340,6 +368,10 @@ class PLMIN20(Dataset):
                 cl_binary[list(candidate)] = 1
                 if self.invert_labels:
                     cl_binary = 1 - cl_binary
+                if self.algo == 'proden':
+                    count = cl_binary.sum().item()
+                    if count > 0:
+                        cl_binary = cl_binary / count
                 self.labels.append(cl_binary)
         else:
             for ord_label in data['ord_labels']:
