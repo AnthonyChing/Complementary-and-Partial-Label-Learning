@@ -141,20 +141,20 @@ This semester’s work provided practical insights into the relationship between
 <table cellspacing="0" cellpadding="5" align="center">
   <tbody>
     <tr>
-      <td align="center"><img src = "./clcifar10_proden.png" style="width: 90%"></td>
-      <td align="center"><img src = "./clcifar20_proden.png" style="width: 90%"></td>
+      <td align="center"><img src = "img/clcifar10_proden.png" style="width: 90%"></td>
+      <td align="center"><img src = "img/clcifar20_proden.png" style="width: 90%"></td>
     </tr>
     <tr>
-      <td align="center"><img src = "./clmin10_proden.png" style="width: 90%"></td>
-      <td align="center"><img src = "./clmin20_proden.png" style="width: 90%"></td>
+      <td align="center"><img src = "img/clmin10_proden.png" style="width: 90%"></td>
+      <td align="center"><img src = "img/clmin20_proden.png" style="width: 90%"></td>
     </tr>
     <tr>
-      <td align="center"><img src = "./plcifar10_proden.png" style="width: 90%"></td>
-      <td align="center"><img src = "./plcifar20_proden.png" style="width: 90%"></td>
+      <td align="center"><img src = "img/plcifar10_proden.png" style="width: 90%"></td>
+      <td align="center"><img src = "img/plcifar20_proden.png" style="width: 90%"></td>
     </tr>
     <tr>
-      <td align="center"><img src = "./plmin10_proden.png" style="width: 90%"></td>
-      <td align="center"><img src = "./plmin20_proden.png" style="width: 90%"></td>
+      <td align="center"><img src = "img/plmin10_proden.png" style="width: 90%"></td>
+      <td align="center"><img src = "img/plmin20_proden.png" style="width: 90%"></td>
     </tr>
   </tbody>
 </table>
